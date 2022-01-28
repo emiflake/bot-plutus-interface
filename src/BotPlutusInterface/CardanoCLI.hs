@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module BotPlutusInterface.CardanoCLI (
   BuildMode (..),
@@ -13,8 +14,11 @@ module BotPlutusInterface.CardanoCLI (
   unsafeSerialiseAddress,
   policyScriptFilePath,
   utxosAt,
+  Tip(..),
+  queryTip,
 ) where
 
+import Data.Maybe (fromJust)
 import BotPlutusInterface.Effects (PABEffect, ShellArgs (..), callCommand, uploadDir)
 import BotPlutusInterface.Files (
   datumJsonFilePath,
@@ -30,6 +34,7 @@ import Cardano.Api.Shelley (NetworkId (Mainnet, Testnet), NetworkMagic (..), ser
 import Codec.Serialise qualified as Codec
 import Control.Monad.Freer (Eff, Member)
 import Data.Aeson.Extras (encodeByteString)
+import Data.Aeson qualified as Aeson
 import Data.Attoparsec.Text (parseOnly)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.ByteString.Short qualified as ShortByteString
@@ -79,6 +84,7 @@ import Plutus.V1.Ledger.Api (
 import Plutus.V1.Ledger.Api qualified as Plutus
 import PlutusTx.Builtins (fromBuiltin)
 import Prelude
+import GHC.Generics
 
 -- | Upload script files to remote server
 uploadFiles ::
@@ -257,6 +263,36 @@ submitTx pabConf tx =
               else Just out
         )
           . Text.pack
+      )
+
+
+-- | Response from `query tip` cardano-cli command
+data Tip
+  = Tip
+  { -- | The current slot
+    slot :: Integer
+  }
+  deriving stock (Generic)
+  deriving anyclass (Aeson.ToJSON, Aeson.FromJSON)
+
+-- | 
+queryTip ::
+  forall (w :: Type) (effs :: [Type -> Type]).
+  Member (PABEffect w) effs =>
+  PABConfig ->
+  Eff effs Tip
+queryTip pabConf =
+  callCommand @w $
+    ShellArgs
+      "cardano-cli"
+      ( mconcat
+          [ ["query", "tip"]
+          , networkOpt pabConf
+          ]
+      )
+      ( fromJust -- TODO: Get rid of this
+      . Aeson.decode
+      . Codec.serialise
       )
 
 txInOpts :: PABConfig -> BuildMode -> Set TxIn -> [Text]

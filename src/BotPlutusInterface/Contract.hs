@@ -7,6 +7,7 @@ import BotPlutusInterface.CardanoCLI qualified as CardanoCLI
 import BotPlutusInterface.Effects (
   PABEffect,
   createDirectoryIfMissing,
+  threadDelay,
   handlePABEffect,
   logToContract,
   printLog,
@@ -38,6 +39,7 @@ import Plutus.Contract.Effects (
   PABResp (..),
   WriteBalancedTxResponse (..),
  )
+import Plutus.V1.Ledger.Slot (Slot(Slot))
 import Plutus.Contract.Resumable (Resumable (..))
 import Plutus.Contract.Types (Contract (..), ContractEffs)
 import Wallet.Emulator.Error (WalletAPIError (..))
@@ -132,12 +134,18 @@ handlePABReq contractEnv req = do
     ------------------------
     -- Unhandled requests --
     ------------------------
-    AwaitSlotReq s -> pure $ AwaitSlotResp s
+    AwaitSlotReq (Slot s) ->
+      let loop = do
+            currentSlot <- CardanoCLI.slot <$> CardanoCLI.queryTip @w contractEnv.cePABConfig
+            if currentSlot < s
+            then threadDelay @w 10_000_000 >> loop -- NOTE: recheck slot in 10 second increments
+            else pure currentSlot
+      in loop >>= pure . AwaitSlotResp . Slot
     AwaitTimeReq t -> pure $ AwaitTimeResp t
     -- AwaitUtxoSpentReq txOutRef -> pure $ AwaitUtxoSpentResp ChainIndexTx
     -- AwaitUtxoProducedReq Address -> pure $ AwaitUtxoProducedResp (NonEmpty ChainIndexTx)
     AwaitTxStatusChangeReq txId -> pure $ AwaitTxStatusChangeResp txId (Committed TxValid ())
-    -- CurrentSlotReq -> CurrentSlotResp Slot
+    CurrentSlotReq -> CurrentSlotResp . Slot . CardanoCLI.slot <$> CardanoCLI.queryTip @w contractEnv.cePABConfig
     -- CurrentTimeReq -> CurrentTimeResp POSIXTime
     -- ExposeEndpointReq ActiveEndpoint -> ExposeEndpointResp EndpointDescription (EndpointValue JSON.Value)
     -- PosixTimeRangeToContainedSlotRangeReq POSIXTimeRange -> PosixTimeRangeToContainedSlotRangeResp (Either SlotConversionError SlotRange)
