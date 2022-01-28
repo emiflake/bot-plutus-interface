@@ -41,6 +41,7 @@ import Data.ByteString.Short qualified as ShortByteString
 import Data.Either (fromRight)
 import Data.Either.Combinators (mapLeft, maybeToRight)
 import Data.Hex (hex)
+import Data.String (IsString(fromString))
 import Data.Kind (Type)
 import Data.List (sort)
 import Data.Map (Map)
@@ -292,7 +293,7 @@ queryTip pabConf =
       )
       ( fromJust -- TODO: Get rid of this
       . Aeson.decode
-      . Codec.serialise
+      . fromString
       )
 
 txInOpts :: PABConfig -> BuildMode -> Set TxIn -> [Text]
