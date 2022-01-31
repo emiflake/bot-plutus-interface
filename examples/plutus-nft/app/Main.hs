@@ -62,6 +62,7 @@ main = do
           , pcSigningKeyFileDir = "./signing-keys"
           , pcTxFileDir = "./txs"
           , pcDryRun = True
+          , pcIgnoreScriptFailures = False
           , pcLogLevel = Debug
           , pcProtocolParamsFile = "./protocol.json"
           }
