@@ -198,6 +198,7 @@ buildTx pabConf ownPkh buildMode tx =
       mconcat
         [ ["transaction", if isRawBuildMode buildMode then "build-raw" else "build", "--alonzo-era"]
         , txInOpts pabConf buildMode (txInputs tx)
+        , if pabConf.pcIgnoreScriptFailures then [ "--script-invalid" ] else []
         , txInCollateralOpts (txCollateral tx)
         , txOutOpts pabConf (txData tx) (txOutputs tx)
         , mintOpts pabConf buildMode (txMintScripts tx) (txRedeemers tx) (txMint tx)

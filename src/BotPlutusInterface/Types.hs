@@ -50,6 +50,8 @@ data PABConfig = PABConfig
     pcProtocolParamsFile :: !Text
   , -- | Dry run mode will build the tx, but skip the submit step
     pcDryRun :: !Bool
+    -- | Ignore script failures when assembling transaction. This will create transaction which may or may not be rejected.
+  , pcIgnoreScriptFailures :: !Bool
   , pcLogLevel :: !LogLevel
   , pcOwnPubKeyHash :: PubKeyHash
   , pcPort :: !Port
@@ -98,6 +100,7 @@ instance Default PABConfig where
       , pcSigningKeyFileDir = "./signing-keys"
       , pcTxFileDir = "./txs"
       , pcDryRun = True
+      , pcIgnoreScriptFailures = False
       , pcProtocolParamsFile = "./protocol.json"
       , pcLogLevel = Info
       , pcOwnPubKeyHash = ""
