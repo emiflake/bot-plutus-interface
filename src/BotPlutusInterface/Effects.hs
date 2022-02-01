@@ -9,6 +9,7 @@ module BotPlutusInterface.Effects (
   createDirectoryIfMissing,
   queryChainIndex,
   listDirectory,
+  doesFileExist,
   threadDelay,
   uploadDir,
   updateInstanceState,
@@ -73,6 +74,7 @@ data PABEffect (w :: Type) (r :: Type) where
     a ->
     PABEffect w (Either (FileError ()) ())
   ListDirectory :: FilePath -> PABEffect w [FilePath]
+  DoesFileExist :: FilePath -> PABEffect w Bool
   UploadDir :: Text -> PABEffect w ()
   QueryChainIndex :: ChainIndexQuery -> PABEffect w ChainIndexResponse
 
@@ -106,6 +108,7 @@ handlePABEffect contractEnv =
         WriteFileTextEnvelope filepath envelopeDescr contents ->
           Cardano.Api.writeFileTextEnvelope filepath envelopeDescr contents
         ListDirectory filepath -> Directory.listDirectory filepath
+        DoesFileExist filepath -> Directory.doesFileExist filepath
         UploadDir dir ->
           case contractEnv.cePABConfig.pcCliLocation of
             Local -> pure ()
@@ -206,6 +209,13 @@ listDirectory ::
   FilePath ->
   Eff effs [FilePath]
 listDirectory = send @(PABEffect w) . ListDirectory
+
+doesFileExist ::
+  forall (w :: Type) (effs :: [Type -> Type]).
+  Member (PABEffect w) effs =>
+  FilePath ->
+  Eff effs Bool
+doesFileExist = send @(PABEffect w) . DoesFileExist
 
 uploadDir ::
   forall (w :: Type) (effs :: [Type -> Type]). Member (PABEffect w) effs => Text -> Eff effs ()

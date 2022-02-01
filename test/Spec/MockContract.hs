@@ -255,6 +255,7 @@ runPABEffectPure initState req =
     go (WriteFileTextEnvelope filepath envelopeDescr contents) =
       mockWriteFileTextEnvelope filepath envelopeDescr contents
     go (ListDirectory dir) = mockListDirectory dir
+    go (DoesFileExist dir) = mockDoesFileExist dir
     go (UploadDir dir) = mockUploadDir dir
     go (QueryChainIndex query) = mockQueryChainIndex query
 
@@ -408,6 +409,11 @@ mockListDirectory :: forall (w :: Type). FilePath -> MockContract w [FilePath]
 mockListDirectory filepath = do
   state <- get @(MockContractState w)
   pure $ map (drop (length filepath + 1)) $ filter (filepath `isPrefixOf`) $ Map.keys (state ^. files)
+
+mockDoesFileExist :: forall (w :: Type). FilePath -> MockContract w Bool
+mockDoesFileExist filepath = do
+  state <- get @(MockContractState w)
+  pure . (>0) . length . filter (==filepath) $ Map.keys (state ^. files)
 
 mockUploadDir :: forall (w :: Type). Text -> MockContract w ()
 mockUploadDir _ = pure ()

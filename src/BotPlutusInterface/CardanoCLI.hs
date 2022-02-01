@@ -18,8 +18,9 @@ module BotPlutusInterface.CardanoCLI (
   queryTip,
 ) where
 
+import Control.Monad (filterM)
 import Data.Maybe (fromJust)
-import BotPlutusInterface.Effects (PABEffect, ShellArgs (..), callCommand, uploadDir)
+import BotPlutusInterface.Effects (PABEffect, ShellArgs (..), callCommand, uploadDir, doesFileExist)
 import BotPlutusInterface.Files (
   datumJsonFilePath,
   policyScriptFilePath,
@@ -186,37 +187,40 @@ buildTx ::
   BuildMode ->
   Tx ->
   Eff effs ()
-buildTx pabConf ownPkh buildMode tx =
+buildTx pabConf ownPkh buildMode tx = do
+  let signatureFilePaths = [ Text.unpack $ signingKeyFilePath pabConf (Ledger.pubKeyHash pubKey) | pubKey <- Map.keys (Ledger.txSignatures tx) ]
+  knownSigningKeys <- filterM (doesFileExist @w) signatureFilePaths
+  let requiredSigners =
+        concatMap
+          (\pubKey -> ["--required-signer-hash",
+                        -- Can we do this differently? PubKeyHash -> Text via Ledgerbytes
+                      Text.pack . show $ Ledger.pubKeyHash pubKey])
+          (Map.keys (Ledger.txSignatures tx))
+        <> concatMap (\filepath -> [ "--required-signer", Text.pack filepath ]) knownSigningKeys
+
+      ownAddr = Ledger.pubKeyHashAddress (Ledger.PaymentPubKeyHash ownPkh) Nothing
+      opts =
+        mconcat
+          [ ["transaction", if isRawBuildMode buildMode then "build-raw" else "build", "--alonzo-era"]
+          , txInOpts pabConf buildMode (txInputs tx)
+          , if pabConf.pcIgnoreScriptFailures then [ "--script-invalid" ] else []
+          , txInCollateralOpts (txCollateral tx)
+          , txOutOpts pabConf (txData tx) (txOutputs tx)
+          , mintOpts pabConf buildMode (txMintScripts tx) (txRedeemers tx) (txMint tx)
+          , requiredSigners
+          , case buildMode of
+              BuildRaw fee -> ["--fee", showText fee]
+              BuildAuto ->
+                mconcat
+                  [ ["--change-address", unsafeSerialiseAddress pabConf.pcNetwork ownAddr]
+                  , networkOpt pabConf
+                  ]
+          , mconcat
+              [ ["--protocol-params-file", pabConf.pcProtocolParamsFile]
+              , ["--out-file", txFilePath pabConf "raw" tx]
+              ]
+          ]
   callCommand @w $ ShellArgs "cardano-cli" opts (const ())
-  where
-    ownAddr = Ledger.pubKeyHashAddress (Ledger.PaymentPubKeyHash ownPkh) Nothing
-    requiredSigners =
-      concatMap
-        (\pubKey -> ["--required-signer-hash",
-                      -- Can we do this differently? PubKeyHash -> Text via Ledgerbytes
-                     Text.pack . show $ Ledger.pubKeyHash pubKey])
-        (Map.keys (Ledger.txSignatures tx))
-    opts =
-      mconcat
-        [ ["transaction", if isRawBuildMode buildMode then "build-raw" else "build", "--alonzo-era"]
-        , txInOpts pabConf buildMode (txInputs tx)
-        , if pabConf.pcIgnoreScriptFailures then [ "--script-invalid" ] else []
-        , txInCollateralOpts (txCollateral tx)
-        , txOutOpts pabConf (txData tx) (txOutputs tx)
-        , mintOpts pabConf buildMode (txMintScripts tx) (txRedeemers tx) (txMint tx)
-        , requiredSigners
-        , case buildMode of
-            BuildRaw fee -> ["--fee", showText fee]
-            BuildAuto ->
-              mconcat
-                [ ["--change-address", unsafeSerialiseAddress pabConf.pcNetwork ownAddr]
-                , networkOpt pabConf
-                ]
-        , mconcat
-            [ ["--protocol-params-file", pabConf.pcProtocolParamsFile]
-            , ["--out-file", txFilePath pabConf "raw" tx]
-            ]
-        ]
 
 -- Signs and writes a tx (uses the tx body written to disk as input)
 signTx ::

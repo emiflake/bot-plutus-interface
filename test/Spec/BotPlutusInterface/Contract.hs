@@ -110,6 +110,7 @@ sendAda = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2}+1000
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --fee 0
           --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -134,6 +135,7 @@ sendAda = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2}+1000
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
         |]
@@ -192,6 +194,7 @@ sendAdaStaking = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2Staking}+1000
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --fee 0
           --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -216,6 +219,7 @@ sendAdaStaking = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2Staking}+1000
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
         |]
@@ -269,7 +273,9 @@ multisigSupport = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2}+1000
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --required-signer-hash ${pkh3'}
+          --required-signer ./signing-keys/signing-key-${pkh3'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -324,6 +330,7 @@ sendTokens = do
           --tx-out ${addr1}+50 + 95 abcd1234.74657374546F6B656E
           --tx-out ${addr2}+1000 + 5 abcd1234.74657374546F6B656E
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
         |]
@@ -368,6 +375,7 @@ sendTokensWithoutName = do
           --tx-out ${addr1}+50 + 95 abcd1234
           --tx-out ${addr2}+1000 + 5 abcd1234
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -422,6 +430,7 @@ mintTokens = do
           --mint-execution-units (297830,1100)
           --mint 5 ${curSymbol'}.74657374546F6B656E
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --fee 0
           --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
       |]
@@ -437,6 +446,7 @@ mintTokens = do
           --mint-redeemer-file ./result-scripts/redeemer-${redeemerHash}.json
           --mint 5 ${curSymbol'}.74657374546F6B656E
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -511,6 +521,7 @@ spendToValidator = do
           --tx-out ${valAddr'}+500
           --tx-out-datum-embed-file ./result-scripts/datum-${datumHash'}.json
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --fee 0 --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
       |]
         )
@@ -523,6 +534,7 @@ spendToValidator = do
           --tx-out ${valAddr'}+500
           --tx-out-datum-embed-file ./result-scripts/datum-${datumHash'}.json
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
@@ -604,6 +616,7 @@ redeemFromValidator = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2}+500
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --fee 0 --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
       |]
         )
@@ -618,6 +631,7 @@ redeemFromValidator = do
           --tx-in-collateral ${inTxId}#0
           --tx-out ${addr2}+500
           --required-signer-hash ${pkh1'}
+          --required-signer ./signing-keys/signing-key-${pkh1'}.skey
           --change-address ${addr1}
           --mainnet --protocol-params-file ./protocol.json --out-file ./txs/tx-${outTxId}.raw
           |]
