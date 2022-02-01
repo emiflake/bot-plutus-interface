@@ -38,7 +38,6 @@ import Data.Aeson qualified as JSON
 import Data.Kind (Type)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 import Plutus.Contract.Effects (ChainIndexQuery, ChainIndexResponse)
 import Plutus.PAB.Core.ContractInstance.STM (Activity)
 import System.Directory qualified as Directory
@@ -121,8 +120,7 @@ printLog' logLevelSetting msgLogLvl msg =
   when (logLevelSetting >= msgLogLvl) $ putStrLn msg
 
 callLocalCommand :: forall (a :: Type). ShellArgs a -> IO a
-callLocalCommand ShellArgs {cmdName, cmdArgs, cmdOutParser} = do
-  Text.putStrLn $ cmdName <> " " <> Text.unwords cmdArgs
+callLocalCommand ShellArgs {cmdName, cmdArgs, cmdOutParser} =
   cmdOutParser <$> readProcess (Text.unpack cmdName) (map Text.unpack cmdArgs) ""
 
 callRemoteCommand :: forall (a :: Type). Text -> ShellArgs a -> IO a

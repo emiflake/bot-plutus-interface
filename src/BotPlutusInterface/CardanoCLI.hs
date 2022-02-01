@@ -192,7 +192,9 @@ buildTx pabConf ownPkh buildMode tx =
     ownAddr = Ledger.pubKeyHashAddress (Ledger.PaymentPubKeyHash ownPkh) Nothing
     requiredSigners =
       concatMap
-        (\pubKey -> ["--required-signer", signingKeyFilePath pabConf (Ledger.pubKeyHash pubKey)])
+        (\pubKey -> ["--required-signer-hash",
+                      -- Can we do this differently? PubKeyHash -> Text via Ledgerbytes
+                     Text.pack . show $ Ledger.pubKeyHash pubKey])
         (Map.keys (Ledger.txSignatures tx))
     opts =
       mconcat
