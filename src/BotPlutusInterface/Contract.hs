@@ -12,10 +12,11 @@ import BotPlutusInterface.Effects (
   logToContract,
   printLog,
   queryChainIndex,
+  threadDelay,
  )
 import BotPlutusInterface.Files qualified as Files
 import BotPlutusInterface.PreBalance qualified as PreBalance
-import BotPlutusInterface.Types (ContractEnvironment (..), LogLevel (Debug))
+import BotPlutusInterface.Types (ContractEnvironment (..), LogLevel (Debug), Tip (slot))
 import Control.Lens ((^.))
 import Control.Monad.Freer (Eff, Member, interpret, reinterpret, runM, subsume, type (~>))
 import Control.Monad.Freer.Error (runError)
@@ -23,12 +24,17 @@ import Control.Monad.Freer.Extras.Log (handleLogIgnore)
 import Control.Monad.Freer.Extras.Modify (raiseEnd)
 import Control.Monad.Freer.Writer (Writer (Tell))
 import Data.Aeson (ToJSON, Value)
+import Data.Default (Default (def))
+import Data.Either (isRight)
 import Data.Kind (Type)
 import Data.Map qualified as Map
 import Data.Row (Row)
 import Data.Text qualified as Text
+import Ledger (POSIXTime)
 import Ledger.Address (PaymentPubKeyHash (PaymentPubKeyHash))
 import Ledger.Constraints.OffChain (UnbalancedTx (..))
+import Ledger.Slot (Slot (Slot))
+import Ledger.TimeSlot (slotToEndPOSIXTime)
 import Ledger.Tx (CardanoTx)
 import Ledger.Tx qualified as Tx
 import Plutus.ChainIndex.Types (RollbackState (Committed), TxValidity (..))
@@ -39,7 +45,6 @@ import Plutus.Contract.Effects (
   PABResp (..),
   WriteBalancedTxResponse (..),
  )
-import Plutus.V1.Ledger.Slot (Slot(Slot))
 import Plutus.Contract.Resumable (Resumable (..))
 import Plutus.Contract.Types (Contract (..), ContractEffs)
 import Wallet.Emulator.Error (WalletAPIError (..))
@@ -131,25 +136,19 @@ handlePABReq contractEnv req = do
       BalanceTxResp <$> balanceTx @w contractEnv unbalancedTx
     WriteBalancedTxReq tx ->
       WriteBalancedTxResp <$> writeBalancedTx @w contractEnv tx
+    AwaitSlotReq s -> AwaitSlotResp <$> awaitSlot @w contractEnv s
+    CurrentSlotReq -> CurrentSlotResp <$> currentSlot @w contractEnv
+    CurrentTimeReq -> CurrentTimeResp <$> currentTime @w contractEnv
     ------------------------
     -- Unhandled requests --
     ------------------------
-    AwaitSlotReq (Slot s) ->
-      let loop = do
-            currentSlot <- CardanoCLI.slot <$> CardanoCLI.queryTip @w contractEnv.cePABConfig
-            if currentSlot < s
-            then threadDelay @w 10_000_000 >> loop -- NOTE: recheck slot in 10 second increments
-            else pure currentSlot
-      in loop >>= pure . AwaitSlotResp . Slot
-    AwaitTimeReq t -> pure $ AwaitTimeResp t
+    -- AwaitTimeReq t -> pure $ AwaitTimeResp t
     -- AwaitUtxoSpentReq txOutRef -> pure $ AwaitUtxoSpentResp ChainIndexTx
     -- AwaitUtxoProducedReq Address -> pure $ AwaitUtxoProducedResp (NonEmpty ChainIndexTx)
     AwaitTxStatusChangeReq txId -> pure $ AwaitTxStatusChangeResp txId (Committed TxValid ())
-    CurrentSlotReq -> CurrentSlotResp . Slot . CardanoCLI.slot <$> CardanoCLI.queryTip @w contractEnv.cePABConfig
-    -- CurrentTimeReq -> CurrentTimeResp POSIXTime
     -- ExposeEndpointReq ActiveEndpoint -> ExposeEndpointResp EndpointDescription (EndpointValue JSON.Value)
     -- PosixTimeRangeToContainedSlotRangeReq POSIXTimeRange -> PosixTimeRangeToContainedSlotRangeResp (Either SlotConversionError SlotRange)
-    _ -> pure $ OwnContractInstanceIdResp contractEnv.ceContractInstanceId
+    unsupported -> error ("Unsupported PAB effect: " ++ show unsupported)
 
   printLog @w Debug $ show resp
   pure resp
@@ -203,15 +202,52 @@ writeBalancedTx contractEnv (Right tx) = do
     Right _ -> do
       let ownPkh = contractEnv.cePABConfig.pcOwnPubKeyHash
       let requiredSigners = Map.keys $ tx ^. Tx.signatures
+      privKeys <- either (error . Text.unpack) id <$> Files.readPrivateKeys @w contractEnv.cePABConfig
 
       CardanoCLI.uploadFiles @w contractEnv.cePABConfig
 
-      CardanoCLI.buildTx @w contractEnv.cePABConfig ownPkh CardanoCLI.BuildAuto tx
-      CardanoCLI.signTx @w contractEnv.cePABConfig tx requiredSigners
+      CardanoCLI.buildTx @w contractEnv.cePABConfig privKeys ownPkh CardanoCLI.BuildAuto tx
+      res <- CardanoCLI.signTx @w contractEnv.cePABConfig privKeys tx requiredSigners
 
       result <-
-        if contractEnv.cePABConfig.pcDryRun
+        if contractEnv.cePABConfig.pcDryRun || isRight res
           then pure Nothing
           else CardanoCLI.submitTx @w contractEnv.cePABConfig tx
 
       pure $ maybe (WriteBalancedTxSuccess (Right tx)) (WriteBalancedTxFailed . OtherError) result
+
+{- | Wait for at least n slots. The slot number only changes when a new block is appended to the chain
+ so it waits for at least one block
+-}
+awaitSlot ::
+  forall (w :: Type) (effs :: [Type -> Type]).
+  Member (PABEffect w) effs =>
+  ContractEnvironment w ->
+  Slot ->
+  Eff effs Slot
+awaitSlot contractEnv (Slot n) = do
+  tip <- CardanoCLI.queryTip @w contractEnv.cePABConfig
+  waitNSlots' tip.slot
+  where
+    waitNSlots' refSlot = do
+      threadDelay @w 10_000_000
+      tip' <- CardanoCLI.queryTip @w contractEnv.cePABConfig
+      if tip'.slot < n
+        then waitNSlots' refSlot
+        else pure $ Slot tip'.slot
+
+currentSlot ::
+  forall (w :: Type) (effs :: [Type -> Type]).
+  Member (PABEffect w) effs =>
+  ContractEnvironment w ->
+  Eff effs Slot
+currentSlot contractEnv =
+  Slot . slot <$> CardanoCLI.queryTip @w contractEnv.cePABConfig
+
+currentTime ::
+  forall (w :: Type) (effs :: [Type -> Type]).
+  Member (PABEffect w) effs =>
+  ContractEnvironment w ->
+  Eff effs POSIXTime
+currentTime contractEnv =
+  slotToEndPOSIXTime def <$> currentSlot @w contractEnv
